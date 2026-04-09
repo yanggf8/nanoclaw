@@ -9,7 +9,10 @@ import {
   getLastBotMessageTimestamp,
   getMessagesSince,
   getNewMessages,
+  getOverdueTasks,
+  getRecentErrorCount,
   getTaskById,
+  logTaskRun,
   resetTaskFailCount,
   setRegisteredGroup,
   storeChatMetadata,
@@ -670,6 +673,103 @@ describe('registered group isMain', () => {
     const group = groups['group@g.us'];
     expect(group).toBeDefined();
     expect(group.isMain).toBeUndefined();
+  });
+});
+
+// --- Sensorium DB queries ---
+
+describe('getOverdueTasks', () => {
+  it('returns tasks with next_run in the past', () => {
+    createTask({
+      id: 'overdue-1',
+      group_folder: 'main',
+      chat_jid: 'tg:1',
+      prompt: 'do something',
+      schedule_type: 'interval',
+      schedule_value: '60000',
+      context_mode: 'isolated',
+      next_run: new Date(Date.now() - 10000).toISOString(),
+      status: 'active',
+      created_at: new Date().toISOString(),
+    });
+
+    const result = getOverdueTasks();
+    expect(result.some((t) => t.id === 'overdue-1')).toBe(true);
+  });
+
+  it('does not return future tasks', () => {
+    createTask({
+      id: 'future-1',
+      group_folder: 'main',
+      chat_jid: 'tg:1',
+      prompt: 'do something later',
+      schedule_type: 'interval',
+      schedule_value: '60000',
+      context_mode: 'isolated',
+      next_run: new Date(Date.now() + 60000).toISOString(),
+      status: 'active',
+      created_at: new Date().toISOString(),
+    });
+
+    const result = getOverdueTasks();
+    expect(result.some((t) => t.id === 'future-1')).toBe(false);
+  });
+});
+
+describe('getRecentErrorCount', () => {
+  it('returns count of errors in last 24h', () => {
+    createTask({
+      id: 'err-task-1',
+      group_folder: 'main',
+      chat_jid: 'tg:1',
+      prompt: 'prompt',
+      schedule_type: 'once',
+      schedule_value: 'once',
+      context_mode: 'isolated',
+      next_run: null,
+      status: 'active',
+      created_at: new Date().toISOString(),
+    });
+
+    logTaskRun({
+      task_id: 'err-task-1',
+      run_at: new Date().toISOString(),
+      duration_ms: 100,
+      status: 'error',
+      result: null,
+      error: 'boom',
+    });
+
+    const count = getRecentErrorCount(24);
+    expect(count).toBeGreaterThanOrEqual(1);
+  });
+
+  it('excludes errors older than windowHours', () => {
+    createTask({
+      id: 'old-err-task',
+      group_folder: 'main',
+      chat_jid: 'tg:1',
+      prompt: 'prompt',
+      schedule_type: 'once',
+      schedule_value: 'once',
+      context_mode: 'isolated',
+      next_run: null,
+      status: 'active',
+      created_at: new Date().toISOString(),
+    });
+
+    const oldTime = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    logTaskRun({
+      task_id: 'old-err-task',
+      run_at: oldTime,
+      duration_ms: 100,
+      status: 'error',
+      result: null,
+      error: 'old error',
+    });
+
+    const count = getRecentErrorCount(1);
+    expect(count).toBe(0);
   });
 });
 

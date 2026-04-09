@@ -537,6 +537,37 @@ export function getDueTasks(): ScheduledTask[] {
     .all(now) as ScheduledTask[];
 }
 
+/**
+ * Return active tasks whose next_run is in the past (overdue but not yet picked up).
+ * Used by the sensorium to surface overdue work to the agent.
+ */
+export function getOverdueTasks(): ScheduledTask[] {
+  const now = new Date().toISOString();
+  return db
+    .prepare(
+      `SELECT * FROM scheduled_tasks
+       WHERE status = 'active' AND next_run IS NOT NULL AND next_run < ?`,
+    )
+    .all(now) as ScheduledTask[];
+}
+
+/**
+ * Return the count of task run errors in the last `windowHours` hours.
+ * Used by the sensorium to surface recent failure rate to the agent.
+ */
+export function getRecentErrorCount(windowHours: number): number {
+  const since = new Date(
+    Date.now() - windowHours * 60 * 60 * 1000,
+  ).toISOString();
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) as count FROM task_run_logs
+       WHERE status = 'error' AND run_at >= ?`,
+    )
+    .get(since) as { count: number };
+  return row.count;
+}
+
 export function updateTaskAfterRun(
   id: string,
   nextRun: string | null,

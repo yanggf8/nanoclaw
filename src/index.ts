@@ -19,6 +19,7 @@ import {
 } from './channels/registry.js';
 import { writeGroupsSnapshot, writeTasksSnapshot } from './container-runner.js';
 import { ContainerOutput, runContainerAgent } from './qwen-runner.js';
+import { buildSensorium } from './sensorium.js';
 import { InboundDebouncer } from './inbound-debounce.js';
 import {
   getAllChats,
@@ -29,6 +30,8 @@ import {
   getLastBotMessageTimestamp,
   getMessagesSince,
   getNewMessages,
+  getOverdueTasks,
+  getRecentErrorCount,
   getRouterState,
   initDatabase,
   setRegisteredGroup,
@@ -59,6 +62,8 @@ import { logger } from './logger.js';
 
 // Re-export for backwards compatibility during refactor
 export { escapeXml, formatMessages } from './router.js';
+
+const PROCESS_STARTED_AT = new Date();
 
 let lastTimestamp = '';
 let sessions: Record<string, string> = {};
@@ -352,6 +357,21 @@ async function runAgent(
       }
     : undefined;
 
+  const now = new Date();
+  const overdueList = getOverdueTasks();
+  const overdueIds = new Set(overdueList.map((t) => t.id));
+  const pendingTasks = tasks.filter(
+    (t) => t.status === 'active' && !overdueIds.has(t.id),
+  ).length;
+  const sensorium = buildSensorium({
+    now,
+    startedAt: PROCESS_STARTED_AT,
+    activeSessions: Object.keys(sessions).length,
+    pendingTasks,
+    overdueTasks: overdueList.length,
+    recentErrors: getRecentErrorCount(24),
+  });
+
   try {
     const output = await runContainerAgent(
       group,
@@ -362,6 +382,7 @@ async function runAgent(
         chatJid,
         isMain,
         assistantName: ASSISTANT_NAME,
+        sensorium,
       },
       (proc, containerName) =>
         queue.registerProcess(chatJid, proc, containerName, group.folder),
