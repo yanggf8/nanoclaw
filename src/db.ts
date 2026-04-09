@@ -553,12 +553,26 @@ export function getOverdueTasks(): ScheduledTask[] {
 
 /**
  * Return the count of task run errors in the last `windowHours` hours.
+ * If `groupFolder` is provided, only counts errors for tasks belonging to that group.
  * Used by the sensorium to surface recent failure rate to the agent.
  */
-export function getRecentErrorCount(windowHours: number): number {
+export function getRecentErrorCount(
+  windowHours: number,
+  groupFolder?: string,
+): number {
   const since = new Date(
     Date.now() - windowHours * 60 * 60 * 1000,
   ).toISOString();
+  if (groupFolder) {
+    const row = db
+      .prepare(
+        `SELECT COUNT(*) as count FROM task_run_logs trl
+         JOIN scheduled_tasks st ON trl.task_id = st.id
+         WHERE trl.status = 'error' AND trl.run_at >= ? AND st.group_folder = ?`,
+      )
+      .get(since, groupFolder) as { count: number };
+    return row.count;
+  }
   const row = db
     .prepare(
       `SELECT COUNT(*) as count FROM task_run_logs

@@ -358,10 +358,19 @@ async function runAgent(
     : undefined;
 
   const now = new Date();
-  const overdueList = getOverdueTasks();
+  // For non-main groups, scope metrics to match writeTasksSnapshot() filtering —
+  // only this group's tasks are visible, so cross-group counts would be misleading.
+  const allOverdueList = getOverdueTasks();
+  const overdueList = isMain
+    ? allOverdueList
+    : allOverdueList.filter((t) => t.group_folder === group.folder);
   const overdueIds = new Set(overdueList.map((t) => t.id));
-  const pendingTasks = tasks.filter(
-    (t) => t.status === 'active' && !overdueIds.has(t.id),
+  const visibleTasks = isMain
+    ? tasks
+    : tasks.filter((t) => t.group_folder === group.folder);
+  const pendingTasks = visibleTasks.filter(
+    (t) =>
+      t.status === 'active' && t.next_run !== null && !overdueIds.has(t.id),
   ).length;
   const sensorium = buildSensorium({
     now,
@@ -369,7 +378,7 @@ async function runAgent(
     activeSessions: Object.keys(sessions).length,
     pendingTasks,
     overdueTasks: overdueList.length,
-    recentErrors: getRecentErrorCount(24),
+    recentErrors: getRecentErrorCount(24, isMain ? undefined : group.folder),
   });
 
   try {
