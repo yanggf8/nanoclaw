@@ -16,6 +16,7 @@ Single Node.js process with skill-based channel system. Channels (WhatsApp, Tele
 |------|---------|
 | `src/index.ts` | Orchestrator: state, message loop, agent invocation |
 | `src/inbound-debounce.ts` | Per-group message debouncer (800ms default, `DEBOUNCE_MS` env) |
+| `src/sensorium.ts` | Builds XML sensorium block injected into every agent prompt (clock, vitals) |
 | `src/qwen-runner.ts` | Spawns Qwen CLI agent, parses stream-json output, classifies errors |
 | `src/channels/registry.ts` | Channel registry (self-registration at startup) |
 | `src/ipc.ts` | IPC watcher and task processing |
@@ -104,6 +105,7 @@ systemctl --user restart nanoclaw
 - Qwen auth managed by `~/.qwen/oauth_creds.json`; settings at `.qwen/settings.json`
 - IPC MCP server (schedule_task, registerGroup, etc.) is **not yet wired** for qwen — agents respond but can't call back to the host
 - Sender allowlist config at `~/.config/nanoclaw/sender-allowlist.json`
+- Each invocation injects a `<sensorium>` XML block via `--append-system-prompt` (clock, uptime, active sessions, pending/overdue tasks, recent errors scoped to the group)
 
 ### IPC
 Containers write commands to `data/ipc/{groupFolder}/` JSON files; the host IPC watcher polls these and dispatches to `sendMessage`, `registerGroup`, task CRUD, etc.
