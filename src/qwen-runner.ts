@@ -34,6 +34,7 @@ export interface ContainerInput {
   isScheduledTask?: boolean;
   assistantName?: string;
   script?: string;
+  sensorium?: string;
 }
 
 export type QwenErrorType =
@@ -130,8 +131,14 @@ export async function runContainerAgent(
     args.push('--resume', input.sessionId);
   }
 
-  if (globalClaudeMd) {
-    args.push('--append-system-prompt', globalClaudeMd);
+  // Build system prompt: global CLAUDE.md + sensorium block
+  const systemPromptParts: string[] = [];
+  if (globalClaudeMd) systemPromptParts.push(globalClaudeMd);
+  if (input.sensorium) systemPromptParts.push(input.sensorium);
+  const systemPrompt = systemPromptParts.join('\n\n');
+
+  if (systemPrompt) {
+    args.push('--append-system-prompt', systemPrompt);
   }
 
   // Prompt as positional argument — spawn handles quoting, no shell injection risk

@@ -40,3 +40,12 @@ describe('classifyQwenError', () => {
     expect(classifyQwenError('something went wrong', 1)).toBe('retryable');
   });
 });
+
+describe('sensorium in system prompt args', () => {
+  it('classifyQwenError is not affected by sensorium content', () => {
+    // Sensorium XML should never be misclassified as an error
+    const sensoriumXml =
+      '<sensorium><clock><time>2026-04-09T00:00:00Z</time><uptime_hours>1.0</uptime_hours></clock><vitals><sessions_active>1</sessions_active><tasks_pending>0</tasks_pending><tasks_overdue>0</tasks_overdue><recent_errors>0</recent_errors></vitals></sensorium>';
+    expect(classifyQwenError(sensoriumXml, 0)).toBe('retryable');
+  });
+});
